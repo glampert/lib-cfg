@@ -4,7 +4,16 @@
 // File: cfg.hpp
 // Author: Guilherme R. Lampert
 // Created on: 09/06/16
-// Brief: Lib CFG - A small C++ library for configuration file handling, CVars and Commands.
+//
+// About:
+//  Lib CFG - A small C++ library for configuration file handling, CVars and Commands.
+//
+// License:
+//  This software is in the public domain. Where that dedication is not recognized,
+//  you are granted a perpetual, irrevocable license to copy, distribute, and modify
+//  this file as you see fit. Source code is provided "as is", without warranty of any
+//  kind, express or implied. No attribution is required, but a mention about the author
+//  is appreciated.
 // ================================================================================================
 
 #ifndef CFG_HPP
@@ -17,13 +26,9 @@
 #include <functional>
 #include <type_traits>
 
-// ========================================================
-// Configurable library macros:
-// ========================================================
-
 //
 // Overridable assert() for Lib CFG.
-// Default to the standard assert() function.
+// Defaults to the standard assert() function.
 //
 #ifndef CFG_ASSERT
     #include <cassert>
@@ -515,14 +520,20 @@ public:
 
     CommandHandlerMemFunc(const CommandHandlerMemFunc & other)
     {
-        CFG_ASSERT(other.baseHolder != nullptr);
-        baseHolder = other.baseHolder->clone(&dataBlob);
+        if (other.baseHolder != nullptr)
+        {
+            baseHolder = other.baseHolder->clone(&dataBlob);
+            CFG_ASSERT(baseHolder != nullptr);
+        }
     }
 
     CommandHandlerMemFunc & operator = (const CommandHandlerMemFunc & other)
     {
-        CFG_ASSERT(other.baseHolder != nullptr);
-        baseHolder = other.baseHolder->clone(&dataBlob);
+        if (other.baseHolder != nullptr)
+        {
+            baseHolder = other.baseHolder->clone(&dataBlob);
+            CFG_ASSERT(baseHolder != nullptr);
+        }
         return *this;
     }
 
@@ -531,6 +542,7 @@ public:
     {
         const auto holder = MemFuncHolder<RetType, ClassType, Args...>{ objPtr, pMemFunc };
         baseHolder = holder.clone(&dataBlob);
+        CFG_ASSERT(baseHolder != nullptr);
     }
 
     template<typename RetType, typename ClassType, typename... Args>
@@ -538,11 +550,13 @@ public:
     {
         const auto holder = MemFuncHolder<RetType, typename std::add_const<ClassType>::type, Args...>{ objPtr, pMemFunc };
         baseHolder = holder.clone(&dataBlob);
+        CFG_ASSERT(baseHolder != nullptr);
     }
 
     template<typename RetType, typename... Args>
     RetType invoke(Args&&... args) const
     {
+        CFG_ASSERT(baseHolder != nullptr);
         const auto holder = static_cast<const CallableHolder<RetType, Args...> *>(baseHolder);
         return holder->invoke(std::forward<Args>(args)...);
     }
@@ -909,6 +923,12 @@ struct SpecialKeys final
 // class SimpleCommandTerminal:
 // ========================================================
 
+//
+// This class is a base with the common operation for line input
+// and printing. You never directly instantiate one of these, instead
+// you can use the provided NativeTerminal implementations or extend
+// this base class to implement other custom GUI terminals/consoles.
+//
 class SimpleCommandTerminal
 {
 public:
@@ -1121,8 +1141,8 @@ private:
 // ========================================================
 
 //
-// The NativeTerminal represents a native terminal for the platform,
-// e.g.: the native command prompt on Linux/Unix or the Windows Console (cmd.exe).
+// The NativeTerminal represents a native terminal/console for the platform,
+// e.g.: the native command prompt on Linux/Unix or the Windows console (cmd.exe).
 // Input comes from stdin and output is written to stdout or stderr.
 //
 class NativeTerminal
@@ -1146,7 +1166,7 @@ public:
     // Creates a WindowsTerminal instance that relies on the ConIO library.
     static NativeTerminal * createWindowsTerminalInstance();
 
-    // Free a previously allocated instance.
+    // Frees a previously allocated instance.
     static void destroyInstance(NativeTerminal * term);
 };
 
@@ -1157,8 +1177,7 @@ public:
 namespace color
 {
 
-// This will check if stdout and stderr are not redirected to a file
-// and if CFG_USE_ANSI_COLOR_CODES is defined to true.
+// See the CFG_USE_ANSI_COLOR_CODES switch in the implementation.
 bool canColorPrint() noexcept;
 
 // ANSI color codes:

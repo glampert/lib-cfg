@@ -1,17 +1,12 @@
 
 // ================================================================================================
 // -*- C++ -*-
-// File: test_native_terminal.cpp
+// File: native_terminal.cpp
 // Author: Guilherme R. Lampert
 // Created on: 10/06/16
 // Brief: Minimal test application for the NativeTerminal.
+// License: This source code is in the public domain.
 // ================================================================================================
-
-//
-//TODO
-// - update the README
-// - add a license
-//
 
 #include "cfg.hpp"
 
@@ -51,10 +46,11 @@ int main(const int argc, const char * argv[])
 
             // Upper 24bits are a SpecialKeys constant or zero.
             // Lower 8bits are an ASCII char or zero.
-            terminal->handleKeyInput((keyCode & 0xFFFFFF00), (keyCode & 0xFF));
+            terminal->handleKeyInput(keyCode & 0xFFFFFF00, keyCode & 0xFF);
         }
     }
 
+    // Destroys any registered CVars and Commands.
     NativeTerminal::destroyInstance(terminal);
     CommandManager::destroyInstance(cmdManager);
     CVarManager::destroyInstance(cvarManager);

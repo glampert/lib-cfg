@@ -4,7 +4,16 @@
 // File: cfg.cpp
 // Author: Guilherme R. Lampert
 // Created on: 09/06/16
-// Brief: Lib CFG - A small C++ library for configuration file handling, CVars and Commands.
+//
+// About:
+//  Lib CFG - A small C++ library for configuration file handling, CVars and Commands.
+//
+// License:
+//  This software is in the public domain. Where that dedication is not recognized,
+//  you are granted a perpetual, irrevocable license to copy, distribute, and modify
+//  this file as you see fit. Source code is provided "as is", without warranty of any
+//  kind, express or implied. No attribution is required, but a mention about the author
+//  is appreciated.
 // ================================================================================================
 
 #include "cfg.hpp"
@@ -41,7 +50,7 @@
 
 //
 // CVar strings such as the allowed values and boolean
-// values are case-sensitive if this is defined.
+// values are case-sensitive if this is defined to nonzero.
 //
 #ifndef CFG_CVAR_CASE_SENSITIVE_STRINGS
     #define CFG_CVAR_CASE_SENSITIVE_STRINGS 1
@@ -67,7 +76,7 @@
 //
 // If defined to nonzero, #pragma packs some of
 // the base classes so avoid additional padding.
-// Disable this is '#pragma pack()' is not supported
+// Disable this if '#pragma pack()' is not supported
 // on your target compiler.
 //
 #ifndef CFG_PACK_STRUCTURES
@@ -75,8 +84,12 @@
 #endif // CFG_PACK_STRUCTURES
 
 //
-// If nonzero, the color::something() functions will return an
+// If defined, the color::something() functions will return an
 // ANSI escape sequence with a color code, otherwise an empty string.
+//
+// Define it to exactly 1 to only use the color codes if stdout and stderr
+// are NOT redirected (isatty == true). If they are redirected, then color
+// codes are not used. Anything other than 1 always enables them.
 //
 #ifndef CFG_USE_ANSI_COLOR_CODES
     #define CFG_USE_ANSI_COLOR_CODES 1
@@ -100,22 +113,27 @@
 
 //
 // Compatibility macros and includes for isatty() and friends.
+// This is only really needed for the NativeTerminal implementations.
+// and colored text printing with the ANSI color codes.
 //
-#if defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-    #include <unistd.h>        // isatty()
-    #include <termios.h>       // tcsetattr/tcgetattr
-    #define CFG_ISATTY(fh)     isatty(fh)
-    #define CFG_STDIN_FILENO   STDIN_FILENO
-    #define CFG_STDOUT_FILENO  STDOUT_FILENO
-    #define CFG_STDERR_FILENO  STDERR_FILENO
-#elif defined(_WIN32) || defined(_MSC_VER)
-    #include <io.h>
-    #include <conio.h>
-    #define CFG_ISATTY(fh)     _isatty(fh)
-    #define CFG_STDIN_FILENO   _fileno(stdin)
-    #define CFG_STDOUT_FILENO  _fileno(stdout)
-    #define CFG_STDERR_FILENO  _fileno(stderr)
-#endif // Apple/Win/Linux
+#if (defined(CFG_BUILD_UNIX_TERMINAL) || defined(CFG_BUILD_WIN_TERMINAL) || \
+    (defined(CFG_USE_ANSI_COLOR_CODES) && CFG_USE_ANSI_COLOR_CODES == 1))
+    #if defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        #include <unistd.h>        // isatty()
+        #include <termios.h>       // tcsetattr/tcgetattr
+        #define CFG_ISATTY(fh)     isatty(fh)
+        #define CFG_STDIN_FILENO   STDIN_FILENO
+        #define CFG_STDOUT_FILENO  STDOUT_FILENO
+        #define CFG_STDERR_FILENO  STDERR_FILENO
+    #elif defined(_WIN32) || defined(_MSC_VER)
+        #include <io.h>
+        #include <conio.h>
+        #define CFG_ISATTY(fh)     _isatty(fh)
+        #define CFG_STDIN_FILENO   _fileno(stdin)
+        #define CFG_STDOUT_FILENO  _fileno(stdout)
+        #define CFG_STDERR_FILENO  _fileno(stderr)
+    #endif // Apple/Win/Linux
+#endif // CFG_BUILD_UNIX_TERMINAL || CFG_BUILD_WIN_TERMINAL || CFG_USE_ANSI_COLOR_CODES
 
 namespace cfg
 {
@@ -426,8 +444,20 @@ FileIOCallbacks::~FileIOCallbacks()
 // File IO Callbacks:
 // ========================================================
 
+// The DefaultFileIOCallbacksStdIn has an empty default constructor and destructor which
+// will probably end up stripped anyway, so we can silence these if they are being enforced.
+#ifdef __clang__
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wexit-time-destructors"
+    #pragma clang diagnostic ignored "-Wglobal-constructors"
+#endif // __clang__
+
 static DefaultFileIOCallbacksStdIn g_defaultFileIO{};
 static FileIOCallbacks *           g_fileIO = &g_defaultFileIO;
+
+#ifdef __clang__
+    #pragma clang diagnostic pop
+#endif // __clang__
 
 void setFileIOCallbacks(FileIOCallbacks * fileIO) noexcept
 {
@@ -628,7 +658,8 @@ static char * rightTrimString(char * strIn)
     return strIn;
 }
 
-static bool intToString(std::uint64_t number, char * dest, const int destSizeInChars, const int numBase, const bool isNegative)
+static bool intToString(std::uint64_t number, char * dest, const int destSizeInChars,
+                        const int numBase, const bool isNegative)
 {
     CFG_ASSERT(dest != nullptr);
     CFG_ASSERT(destSizeInChars > 3); // - or 0x and a '\0'
@@ -747,7 +778,7 @@ static int trimTrailingZeros(char * str)
 // ========================================================
 // StringHasher/StringHasherNoCase Functors:
 //
-// Simple and fast One-at-a-Time (OAT) hash algorithm
+// Simple and fast One-at-a-Time (OAT) hash algorithm:
 // http://en.wikipedia.org/wiki/Jenkins_hash_function
 // ========================================================
 
@@ -2842,7 +2873,7 @@ CommandArgs::CommandArgs(const int argc, const char * argv[])
 
     for (int i = 1; i < argc; ++i)
     {
-        const char * argStr = appendToken(argv[i], lengthOfString(argv[i]));
+        const char * const argStr = appendToken(argv[i], lengthOfString(argv[i]));
         if (!addArgString(argStr))
         {
             break;
@@ -2873,8 +2904,8 @@ CommandArgs & CommandArgs::operator = (const CommandArgs & other)
 
     for (int i = 0; i < other.getArgCount(); ++i)
     {
-        const char * argStr = appendToken(other.getArgAt(i),
-                                          lengthOfString(other.getArgAt(i)));
+        const char * const argStr = appendToken(other.getArgAt(i),
+                               lengthOfString(other.getArgAt(i)));
 
         // Don't bother checking since if all arguments fit in
         // the source CommandArgs, they must fit in here too!
@@ -4749,9 +4780,13 @@ namespace color
 {
 bool canColorPrint() noexcept
 {
-    #if CFG_USE_ANSI_COLOR_CODES
-    return CFG_ISATTY(CFG_STDOUT_FILENO) && CFG_ISATTY(CFG_STDERR_FILENO);
-    #else // !CFG_USE_ANSI_COLOR_CODES
+    #ifdef CFG_USE_ANSI_COLOR_CODES
+        #if (CFG_USE_ANSI_COLOR_CODES == 1)
+        return CFG_ISATTY(CFG_STDOUT_FILENO) && CFG_ISATTY(CFG_STDERR_FILENO);
+        #else // != 1 -> always enable.
+        return true;
+        #endif // CFG_USE_ANSI_COLOR_CODES
+    #else // not defined -> always disable.
     return false;
     #endif // CFG_USE_ANSI_COLOR_CODES
 }
@@ -4880,7 +4915,7 @@ void SimpleCommandTerminal::restoreTextColor() noexcept
     print(color::restore());
 }
 
-void SimpleCommandTerminal::printF(const char * fmt, ...)
+void SimpleCommandTerminal::printF(const char * const fmt, ...)
 {
     CFG_ASSERT(fmt != nullptr);
 
@@ -6048,7 +6083,7 @@ UnixTerminal::UnixTerminal()
 {
     if (!CFG_ISATTY(CFG_STDIN_FILENO) || !CFG_ISATTY(CFG_STDOUT_FILENO))
     {
-        errorF("STDIN/STDOUT is not a TTY! UnixTerminal refuses to run.");
+        errorF("stdin/stdout is not a TTY! UnixTerminal refuses to run.");
         return;
     }
 
