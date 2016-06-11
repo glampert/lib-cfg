@@ -924,7 +924,7 @@ struct SpecialKeys final
 // ========================================================
 
 //
-// This class is a base with the common operation for line input
+// This class is a base with the common operations for line input
 // and printing. You never directly instantiate one of these, instead
 // you can use the provided NativeTerminal implementations or extend
 // this base class to implement other custom GUI terminals/consoles.
