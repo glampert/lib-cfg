@@ -27,7 +27,10 @@ UNAME = $(shell uname -s)
 ifeq ($(UNAME), Darwin)
   CXXFLAGS += -DCFG_BUILD_UNIX_TERMINAL=1
 endif
+
+# Seems like pthread is needed if using std::thread on Linux...
 ifeq ($(UNAME), Linux)
+  CXXFLAGS += -pthread
   CXXFLAGS += -DCFG_BUILD_UNIX_TERMINAL=1
 endif
 

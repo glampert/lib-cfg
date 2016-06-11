@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cctype>
 #include <cfloat>
+#include <cinttypes>
 
 #include <algorithm>
 #include <iostream>
@@ -1220,6 +1221,15 @@ constexpr int CVarTempStrMaxSize = 128;
     #define CFG_FLOAT_PRINT_FMT "%.8g"
 #endif // CFG_FLOAT_PRINT_FMT
 
+// Portability macro:
+#ifndef CFG_I64_PRINT_FMT
+    #ifdef PRIi64
+        #define CFG_I64_PRINT_FMT "%" PRIi64
+    #else // PRIi64 not defined
+        #define CFG_I64_PRINT_FMT "%lli"
+    #endif // PRIi64
+#endif // CFG_I64_PRINT_FMT
+
 // ========================================================
 // String comparators with configurable case-sensitivity:
 // ========================================================
@@ -1440,11 +1450,13 @@ static inline bool cvarSetInt64(std::int64_t * outVal, const std::int64_t newVal
     {
         if (newVal < valueRange->minValue)
         {
-            return errorF("Value %lli below minimum (%lli).", newVal, valueRange->minValue);
+            return errorF("Value " CFG_I64_PRINT_FMT " below minimum (" CFG_I64_PRINT_FMT ").",
+                          newVal, valueRange->minValue);
         }
         else if (newVal > valueRange->maxValue)
         {
-            return errorF("Value %lli above maximum (%lli).", newVal, valueRange->maxValue);
+            return errorF("Value " CFG_I64_PRINT_FMT " above maximum (" CFG_I64_PRINT_FMT ").",
+                          newVal, valueRange->maxValue);
         }
     }
     *outVal = newVal;
@@ -1467,11 +1479,13 @@ static inline bool cvarSetInt64(double * outVal, const std::int64_t newVal,
     {
         if (newVal < valueRange->minValue)
         {
-            return errorF("Value %lli below minimum (%f).", newVal, valueRange->minValue);
+            return errorF("Value " CFG_I64_PRINT_FMT " below minimum (%f).",
+                          newVal, valueRange->minValue);
         }
         else if (newVal > valueRange->maxValue)
         {
-            return errorF("Value %lli above maximum (%f).", newVal, valueRange->maxValue);
+            return errorF("Value " CFG_I64_PRINT_FMT " above maximum (%f).",
+                          newVal, valueRange->maxValue);
         }
     }
     *outVal = static_cast<double>(newVal);
@@ -1539,11 +1553,13 @@ static inline bool cvarSetDouble(std::int64_t * outVal, const double newVal,
     {
         if (newVal < valueRange->minValue)
         {
-            return errorF("Value %f below minimum (%lli).", newVal, valueRange->minValue);
+            return errorF("Value %f below minimum (" CFG_I64_PRINT_FMT ").",
+                          newVal, valueRange->minValue);
         }
         else if (newVal > valueRange->maxValue)
         {
-            return errorF("Value %f above maximum (%lli).", newVal, valueRange->maxValue);
+            return errorF("Value %f above maximum (" CFG_I64_PRINT_FMT ").",
+                          newVal, valueRange->maxValue);
         }
     }
     *outVal = static_cast<std::int64_t>(newVal);
@@ -4551,23 +4567,23 @@ bool CommandManagerImpl::extractNextCommand(const char ** outStr, char * destBuf
         }
     }
 
-    //
-    // This simple parsing loop allows for commands mostly compatible
-    // with Unix Shell implementations. A couple examples:
-    //
-    // cmd_1 "hello world" \
-    //       "goodbye galaxy"
-    //
-    // ^ The backslash allows a multi-line command/arg-list.
-    //
-    // Multiple commands can also be placed on the same line if separated
-    // by a CommandTextSeparator (by default a ';'), example:
-    //
-    // cmd_1 hello; cmd_2 goodbye; cmd_3 "commands made easy"
-    //
-    // Quotes will keep whitespace-separated strings together as a single argument,
-    // ignoring occurrences of command separators inside the quoted blocks.
-    //
+    /*
+     * This simple parsing loop allows for commands mostly compatible
+     * with Unix Shell implementations. A couple examples:
+     *
+     * cmd_1 "hello world" \
+     *       "goodbye galaxy"
+     *
+     * ^ The backslash allows a multi-line command/arg-list.
+     *
+     * Multiple commands can also be placed on the same line if separated
+     * by a CommandTextSeparator (by default a ';'), example:
+     *
+     * cmd_1 hello; cmd_2 goodbye; cmd_3 "commands made easy"
+     *
+     * Quotes will keep whitespace-separated strings together as a single argument,
+     * ignoring occurrences of command separators inside the quoted blocks.
+     */
 
     int  charsCopied = 0;
     int  quoteCount  = 0;
@@ -5493,8 +5509,8 @@ void SimpleCommandTerminal::listAllCommands()
 
     struct CmdList
     {
-        int count;
-        const Command * cmds[MaxCompletionMatches];
+        int count = 0;
+        const Command * cmds[MaxCompletionMatches]{};
     };
     CmdList cmdList{};
 
@@ -6265,7 +6281,11 @@ void UnixTerminal::sysCls()
 {
     // Relying on system() is a major security hole, but this is
     // just a demo for the SimpleCommandTerminal, so I'm cool with it :P.
-    std::system("clear");
+    //
+    // The void cast is so silence this warning:
+    //  "ignoring return value of 'int system(const char*)', declared with attribute warn_unused_result [-Wunused-result]"
+    // Don't really care if it succeeded or not.
+    (void)std::system("clear");
 }
 
 int UnixTerminal::sysWaitChar()
