@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cctype>
 #include <cfloat>
+#include <ctime>
 #include <cinttypes>
 
 #include <algorithm>
@@ -31,10 +32,10 @@
 #include <memory>
 #include <vector>
 
+// The UnixTerminal runs a background input thread. Not needed for Windows.
 #ifdef CFG_BUILD_UNIX_TERMINAL
     #include <atomic>
     #include <thread>
-    #include <ctime>
 #endif // CFG_BUILD_UNIX_TERMINAL
 
 // ========================================================
@@ -90,7 +91,11 @@
 //
 // Define it to exactly 1 to only use the color codes if stdout and stderr
 // are NOT redirected (isatty == true). If they are redirected, then color
-// codes are not used. Anything other than 1 always enables them.
+// codes are not used. Anything other than 1 always enables them unconditionally,
+// zero or undefined always disables it.
+//
+// ANSI color codes are not supported on the Windows Console, so you'll
+// probably want to disable this for the native WindowsTerminal.
 //
 #ifndef CFG_USE_ANSI_COLOR_CODES
     #define CFG_USE_ANSI_COLOR_CODES 1
@@ -332,7 +337,7 @@ class DefaultFileIOCallbacksStdIn final
 public:
     ~DefaultFileIOCallbacksStdIn();
 
-    bool open(FileHandle * outHandle, const char * const filename, const FileOpenMode mode) override
+    bool open(FileHandle * outHandle, const char * filename, FileOpenMode mode) override
     {
         if (outHandle == nullptr || filename == nullptr || *filename == '\0')
         {
@@ -390,7 +395,7 @@ public:
         std::rewind(static_cast<FILE *>(fh));
     }
 
-    bool readLine(FileHandle fh, char * outBuffer, const int bufferSize) override
+    bool readLine(FileHandle fh, char * outBuffer, int bufferSize) override
     {
         if (fh == nullptr || outBuffer == nullptr || bufferSize <= 0)
         {
@@ -399,7 +404,7 @@ public:
         return std::fgets(outBuffer, bufferSize, static_cast<FILE *>(fh)) != nullptr;
     }
 
-    bool writeString(FileHandle fh, const char * const str) override
+    bool writeString(FileHandle fh, const char * str) override
     {
         if (fh == nullptr || str == nullptr || *str == '\0')
         {
@@ -408,7 +413,7 @@ public:
         return std::fputs(str, static_cast<FILE *>(fh)) != EOF;
     }
 
-    bool writeFormat(FileHandle fh, const char * const fmt, ...) override CFG_PRINTF_FUNC(3, 4)
+    bool writeFormat(FileHandle fh, const char * fmt, ...) override CFG_PRINTF_FUNC(3, 4)
     {
         if (fh == nullptr || fmt == nullptr)
         {
@@ -564,6 +569,12 @@ static char * cloneString(const char * const src)
 
 static const char ** cloneStringArray(const char ** strings)
 {
+// Good ol _CRT_SECURE_NO_WARNINGS for strcpy.
+#ifdef _MSC_VER
+    #pragma warning(push)
+    #pragma warning(disable: 4996)
+#endif // _MSC_VER
+
     if (strings == nullptr)
     {
         return nullptr;
@@ -594,6 +605,10 @@ static const char ** cloneStringArray(const char ** strings)
     // Array is null terminated.
     ptr[i] = nullptr;
     return ptr;
+
+#ifdef _MSC_VER
+    #pragma warning(pop)
+#endif // _MSC_VER
 }
 
 static int compareStringsNoCase(const char * s1, const char * s2, std::uint32_t count)
@@ -1920,7 +1935,7 @@ public:
         return numberFormat;
     }
 
-    void setNumberFormat(const NumberFormat format) override
+    void setNumberFormat(NumberFormat format) override
     {
         numberFormat = format;
     }
@@ -1930,7 +1945,7 @@ public:
         return flags;
     }
 
-    void setFlags(const std::uint32_t newFlags) override
+    void setFlags(std::uint32_t newFlags) override
     {
         flags = newFlags;
     }
@@ -1969,24 +1984,24 @@ public:
         flags &= ~Flags::Modified;
     }
 
-    bool isModified() const override
-    {
-        return flags & Flags::Modified;
-    }
-
     bool isWritable() const override
     {
         return !(flags & (Flags::ReadOnly | Flags::InitOnly));
     }
 
+    bool isModified() const override
+    {
+        return !!(flags & Flags::Modified);
+    }
+
     bool isPersistent() const override
     {
-        return flags & Flags::Persistent;
+        return !!(flags & Flags::Persistent);
     }
 
     bool isRangeChecked() const override
     {
-        return flags & Flags::RangeCheck;
+        return !!(flags & Flags::RangeCheck);
     }
 
     int compareNames(const CVar & other) const override
@@ -2033,7 +2048,7 @@ public:
         return cvarToInt64(currentValue);
     }
 
-    bool setIntValue(const std::int64_t newValue) override
+    bool setIntValue(std::int64_t newValue) override
     {
         if (!isWritable())
         {
@@ -2053,7 +2068,7 @@ public:
         return !!cvarToInt64(currentValue);
     }
 
-    bool setBoolValue(const bool newValue) override
+    bool setBoolValue(bool newValue) override
     {
         if (!isWritable())
         {
@@ -2073,7 +2088,7 @@ public:
         return cvarToDouble(currentValue);
     }
 
-    bool setFloatValue(const double newValue) override
+    bool setFloatValue(double newValue) override
     {
         if (!isWritable())
         {
@@ -2110,7 +2125,7 @@ public:
         return false;
     }
 
-    bool setStringValueIgnoreRO(std::string newValue, const bool writeRomCVars, const bool writeInitCVars) override
+    bool setStringValueIgnoreRO(std::string newValue, bool writeRomCVars, bool writeInitCVars) override
     {
         // Optionally unchecked and without setting the modified flag.
         if ((flags & CVar::Flags::ReadOnly) && !writeRomCVars)
@@ -2129,7 +2144,7 @@ public:
         return false;
     }
 
-    int getAllowedValueStrings(std::string * outValueStrings, const int maxValueStrings) const override
+    int getAllowedValueStrings(std::string * outValueStrings, int maxValueStrings) const override
     {
         if (outValueStrings == nullptr || maxValueStrings <= 0)
         {
@@ -2164,7 +2179,7 @@ public:
         return true;
     }
 
-    bool setDefaultValueIgnoreRO(const bool writeRomCVars, const bool writeInitCVars) override
+    bool setDefaultValueIgnoreRO(bool writeRomCVars, bool writeInitCVars) override
     {
         // Optionally unchecked and without setting the modified flag.
         if ((flags & CVar::Flags::ReadOnly) && !writeRomCVars)
@@ -2187,7 +2202,7 @@ public:
         return result;
     }
 
-    int valueCompletion(const char * const partialVal, std::string * outMatches, const int maxMatches) const override
+    int valueCompletion(const char * partialVal, std::string * outMatches, int maxMatches) const override
     {
         if (valueCompletionCallback != nullptr)
         {
@@ -3434,7 +3449,7 @@ int CommandImplDelegates::argumentCompletion(const char  * const partialArg,
 // C++ class registering a member method as a command handler.
 //
 class CommandImplMemberFuncs final
-: public CommandImplBase
+    : public CommandImplBase
 {
 public:
 
@@ -4665,7 +4680,7 @@ bool CommandManagerImpl::extractNextCommand(const char ** outStr, char * destBuf
 
         if (!done)
         {
-            destBuf[charsCopied++] = chr;
+            destBuf[charsCopied++] = static_cast<char>(chr);
         }
     }
 
@@ -4794,18 +4809,28 @@ CommandHandlerMemFunc::BaseCallableHolder::~BaseCallableHolder()
 
 namespace color
 {
+
 bool canColorPrint() noexcept
 {
     #ifdef CFG_USE_ANSI_COLOR_CODES
-        #if (CFG_USE_ANSI_COLOR_CODES == 1)
-        return CFG_ISATTY(CFG_STDOUT_FILENO) && CFG_ISATTY(CFG_STDERR_FILENO);
-        #else // != 1 -> always enable.
+        #if (CFG_USE_ANSI_COLOR_CODES == 0)
+        // Define to zero to disable.
+        return false;
+        #elif (CFG_USE_ANSI_COLOR_CODES == 1)
+        // Define to 1 to check for redirection.
+        // This can be cached, since it is unlikely that the standard
+        // streams will be redirected while the program is still running.
+        static bool notRedirected = CFG_ISATTY(CFG_STDOUT_FILENO) && CFG_ISATTY(CFG_STDERR_FILENO);
+        return notRedirected;
+        #else
+        // Define to anything else to always enable.
         return true;
         #endif // CFG_USE_ANSI_COLOR_CODES
     #else // not defined -> always disable.
     return false;
     #endif // CFG_USE_ANSI_COLOR_CODES
 }
+
 } // namespace color {}
 
 // ========================================================
@@ -6267,7 +6292,7 @@ void UnixTerminal::onExit()
     printLn("");
 }
 
-void UnixTerminal::onSetClipboardString(const char * const str)
+void UnixTerminal::onSetClipboardString(const char * str)
 {
     clipboardString = str;
 }
@@ -6361,6 +6386,169 @@ int UnixTerminal::sysWaitChar()
 #endif // CFG_BUILD_UNIX_TERMINAL
 
 // ========================================================
+// class WindowsTerminal:
+// ========================================================
+
+#ifdef CFG_BUILD_WIN_TERMINAL
+
+//
+// Simple ConIO-based Windows terminal.
+//
+class WindowsTerminal final
+    : public NativeTerminal
+{
+public:
+
+    WindowsTerminal();
+
+    bool isTTY()    const override;
+    bool hasInput() const override;
+    int  getInput() override;
+
+    void print(const char * text)   override;
+    void printLn(const char * text) override;
+    void clear() override;
+
+private:
+
+    void printWelcomeMessage();
+    bool isATerminal;
+};
+
+// ========================================================
+// WindowsTerminal implementation:
+// ========================================================
+
+WindowsTerminal::WindowsTerminal()
+{
+    if (!CFG_ISATTY(CFG_STDIN_FILENO) || !CFG_ISATTY(CFG_STDOUT_FILENO))
+    {
+        errorF("stdin/stdout is not a TTY! WindowsTerminal refuses to run.");
+        isATerminal = false;
+        return;
+    }
+
+    std::cout.sync_with_stdio(false);
+    std::cout << std::unitbuf; // Unbuffered.
+
+    isATerminal = true;
+    printWelcomeMessage();
+}
+
+bool WindowsTerminal::isTTY() const
+{
+    return isATerminal;
+}
+
+bool WindowsTerminal::hasInput() const
+{
+    if (!isATerminal)
+    {
+        // Never return input if not initialized properly.
+        return false;
+    }
+    return _kbhit() != 0;
+}
+
+int WindowsTerminal::getInput()
+{
+    if (!isATerminal)
+    {
+        return 0;
+    }
+
+    // _getch reference: https://msdn.microsoft.com/en-us/library/078sfkak.aspx
+    const int key = _getch();
+
+    // Check for special keys:
+    switch (key)
+    {
+    case 0x0D : return SpecialKeys::Return;
+    case 0x09 : return SpecialKeys::Tab;
+    case 0x08 : return SpecialKeys::Backspace;
+    case 0x1b : return SpecialKeys::Escape;
+    // Hacks to catch CTRL+key:
+    case 0x10 : return (SpecialKeys::Control | 'p');
+    case 0x0E : return (SpecialKeys::Control | 'n');
+    case 0x0C : return (SpecialKeys::Control | 'l');
+    // Some special keys produce two consecutive codes:
+    case 0xE0 :
+        switch (_getch())
+        {
+        case 0x53 : return SpecialKeys::Delete;
+        case 0x48 : return SpecialKeys::UpArrow;
+        case 0x50 : return SpecialKeys::DownArrow;
+        case 0x4D : return SpecialKeys::RightArrow;
+        case 0x4B : return SpecialKeys::LeftArrow;
+        default   : return '?'; // Unknown key code.
+        } // switch (_getch())
+    default :
+        break;
+    } // switch (key)
+
+    return key;
+}
+
+void WindowsTerminal::print(const char * text)
+{
+    // We can print even if redirected to a file.
+    if (text != nullptr && *text != '\0')
+    {
+        std::cout << text;
+    }
+}
+
+void WindowsTerminal::printLn(const char * text)
+{
+    // We can print even if redirected to a file.
+    // printLn() can take an empty string to just output the newline.
+    if (text != nullptr)
+    {
+        std::cout << text << std::endl;
+    }
+}
+
+void WindowsTerminal::clear()
+{
+    if (!isATerminal)
+    {
+        return;
+    }
+
+    // Feeling lazy, but there's an alternative to "CLS":
+    // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682022(v=vs.85).aspx
+    (void)std::system("cls");
+
+    // Let the parent class set the newline marker, etc.
+    SimpleCommandTerminal::clear();
+}
+
+void WindowsTerminal::printWelcomeMessage()
+{
+    if (!isATerminal)
+    {
+        return;
+    }
+
+    (void)std::system("cls");
+
+    char timeStr[256] = {'\0'};
+    const std::time_t currTime = std::time(nullptr);
+    ctime_s(timeStr, lengthOfArray(timeStr), &currTime);
+    timeStr[lengthOfString(timeStr) - 1] = '\0'; // Erase the default newline added by ctime.
+
+    printF("+-------- Windows Terminal ---------+\n"
+           "|        Session started on:        |\n"
+           "|      %s     |\n"
+           "+-----------------------------------+\n",
+           timeStr);
+
+    newLineWithMarker();
+}
+
+#endif // CFG_BUILD_WIN_TERMINAL
+
+// ========================================================
 // NativeTerminal implementation:
 // ========================================================
 
@@ -6380,8 +6568,8 @@ NativeTerminal * NativeTerminal::createUnixTerminalInstance()
 NativeTerminal * NativeTerminal::createWindowsTerminalInstance()
 {
     #ifdef CFG_BUILD_WIN_TERMINAL
-    // TODO
-    return nullptr;
+    auto winTerm = memAlloc<WindowsTerminal>(1);
+    return construct(winTerm);
     #else // !CFG_BUILD_WIN_TERMINAL
     return nullptr;
     #endif // CFG_BUILD_WIN_TERMINAL
@@ -7088,7 +7276,7 @@ static bool findSubstring(const char * const str,    const int strLength,
     if (strLength >= lengthOfArray(tempStr) ||
         subLength >= lengthOfArray(tempSubstr))
     {
-        return -1;
+        return false;
     }
 
     if (!ignoreCase) // Case-sensitive search:
@@ -7106,13 +7294,13 @@ static bool findSubstring(const char * const str,    const int strLength,
         int i;
         for (i = 0; i < strLength; ++i)
         {
-            tempStr[i] = std::tolower(str[i]);
+            tempStr[i] = static_cast<char>(std::tolower(str[i]));
         }
         tempStr[i] = '\0';
 
         for (i = 0; i < subLength; ++i)
         {
-            tempSubstr[i] = std::tolower(substr[i]);
+            tempSubstr[i] = static_cast<char>(std::tolower(substr[i]));
         }
         tempSubstr[i] = '\0';
 
@@ -7324,17 +7512,19 @@ static void cmdListCmds(const CommandArgs & args, SimpleCommandTerminal * term)
     }
 
     term->setTextColor(color::cyan());
-    term->printF("listed %u commands.\n\n", static_cast<unsigned>(cmdList.patternMatching.size()));
+    term->printF("listed %u commands.\n", static_cast<unsigned>(cmdList.patternMatching.size()));
 
-    term->setTextColor(color::magenta());
-    term->print("magenta");
-    term->restoreTextColor();
-    term->print(" = command aliases\n");
-
-    term->setTextColor(color::white());
-    term->print("white  ");
-    term->restoreTextColor();
-    term->print(" = built-in commands\n");
+    if (color::canColorPrint())
+    {
+        term->setTextColor(color::magenta());
+        term->print("\nmagenta");
+        term->restoreTextColor();
+        term->print(" = command aliases\n");
+        term->setTextColor(color::white());
+        term->print("white  ");
+        term->restoreTextColor();
+        term->print(" = built-in commands\n");
+    }
 
     term->print("=================================================\n");
 }

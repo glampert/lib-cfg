@@ -152,4 +152,7 @@ int main()
     // All CVars and Commands are deleted when the mangers are destroyed.
     cfg::CommandManager::destroyInstance(cmdManager);
     cfg::CVarManager::destroyInstance(cvarManager);
+
+    cfg::errorF("This is a test error message. Press any key to continue...");
+    std::cin.get();
 }

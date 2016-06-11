@@ -620,9 +620,17 @@ private:
     using GenericMemFuncHolder = MemFuncHolder<void *, Dummy, void *>;
 
     // MemFuncHolder instances are constructed in-place into this
-    // buffer, so we don't have allocate any extra memory for them.
-    alignas(GenericMemFuncHolder)
-    std::uint8_t dataBlob[sizeof(GenericMemFuncHolder)]{};
+    // buffer, so we don't have to allocate any extra memory for them.
+    // Visual Studio seems to dislike alignas(), so using a C++11
+    // unrestricted union instead.
+    union Blob
+    {
+         Blob() { }
+        ~Blob() { }
+        GenericMemFuncHolder dummy;
+        std::uint8_t bytes[sizeof(GenericMemFuncHolder)];
+    };
+    Blob dataBlob;
 };
 
 //
