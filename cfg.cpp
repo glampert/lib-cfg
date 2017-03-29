@@ -5307,33 +5307,35 @@ void SimpleCommandTerminal::execCmdLine(const char * cmd)
     //
     // Or if printing the variable value by referencing it.
     //
-    CVar * cvar;
-    if ((cvarManager != nullptr) && (cvar = cvarManager->findCVar(cmdName)))
+    if (cvarManager != nullptr)
     {
-        CommandArgs cmdArgs(cmd);
-        if (cmdArgs.getArgCount() < 1)
+        if (CVar * cvar = cvarManager->findCVar(cmdName))
         {
-            printF("%s is: \"%s\"  |  default: \"%s\"\n",
-                   cvar->getNameCString(),
-                   cvar->getStringValue().c_str(),
-                   cvar->getDefaultValueString().c_str());
-        }
-        else
-        {
-            if (cmdArgs.getArgCount() > 1)
+            CommandArgs cmdArgs(cmd);
+            if (cmdArgs.getArgCount() < 1)
             {
-                setTextColor(color::yellow());
-                printLn("CVar update takes one argument. Ignoring extraneous ones...");
-                restoreTextColor();
+                printF("%s is: \"%s\"  |  default: \"%s\"\n",
+                       cvar->getNameCString(),
+                       cvar->getStringValue().c_str(),
+                       cvar->getDefaultValueString().c_str());
             }
-            if (!cvar->setStringValue(cmdArgs[0]))
+            else
             {
-                setTextColor(color::yellow());
-                printF("Cannot set %s to \"%s\"!\n", cmdName, cmdArgs[0]);
-                restoreTextColor();
+                if (cmdArgs.getArgCount() > 1)
+                {
+                    setTextColor(color::yellow());
+                    printLn("CVar update takes one argument. Ignoring extraneous ones...");
+                    restoreTextColor();
+                }
+                if (!cvar->setStringValue(cmdArgs[0]))
+                {
+                    setTextColor(color::yellow());
+                    printF("Cannot set %s to \"%s\"!\n", cmdName, cmdArgs[0]);
+                    restoreTextColor();
+                }
             }
+            return;
         }
-        return;
     }
 
     //
@@ -5737,6 +5739,14 @@ bool SimpleCommandTerminal::displayCompletionMatches(const char * const partialS
     }
 }
 
+// warning C4706: assignment within conditional expression
+// Granted, to logic in the following function is a bit dodgy,
+// should review that in the future...
+#ifdef _MSC_VER
+    #pragma warning(push)
+    #pragma warning(disable: 4706)
+#endif // _MSC_VER
+
 bool SimpleCommandTerminal::tabCompletion()
 {
     if (lineBufferInsertionPos != lineBufferUsed)
@@ -5937,6 +5947,10 @@ bool SimpleCommandTerminal::tabCompletion()
 
     return true;
 }
+
+#ifdef _MSC_VER
+    #pragma warning(pop)
+#endif // _MSC_VER
 
 bool SimpleCommandTerminal::discardInput()
 {

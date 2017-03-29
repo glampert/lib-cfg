@@ -100,7 +100,7 @@
     <ClCompile>
       <PrecompiledHeader>
       </PrecompiledHeader>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions);CFG_USE_ANSI_COLOR_CODES=0;/DCFG_USE_ANSI_COLOR_CODES=1;CFG_USE_ANSI_COLOR_CODES</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\</AdditionalIncludeDirectories>
@@ -132,7 +132,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level4</WarningLevel>
       <PrecompiledHeader>
       </PrecompiledHeader>
       <Optimization>MaxSpeed</Optimization>
