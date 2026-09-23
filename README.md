@@ -1,8 +1,6 @@
 
 # Lib CFG
 
-[![Build Status](https://travis-ci.org/glampert/lib-cfg.svg)](https://travis-ci.org/glampert/lib-cfg)
-
 Lib CFG - A small C++11 library for configuration file handling, [CVars](https://en.wikipedia.org/wiki/CVAR) and Commands.
 Inspired by the in-game console of games like *Quake* and *DOOM*.
 
